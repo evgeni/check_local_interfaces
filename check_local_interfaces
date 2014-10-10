@@ -100,6 +100,13 @@ $np->add_arg(
     default => 0,
 );
 
+$np->add_arg(
+    spec => 'units|u=s',
+    help =>
+'Output speeds in units/second (default: %s, needs Number::Format for everything else)',
+    default => 'bytes',
+);
+
 $np->getopts;
 
 sub get_interface_stats {
@@ -141,6 +148,13 @@ sub get_interface_stats {
     return %interfaces;
 }
 
+sub convert_units {
+    my ( $bytes, $unit ) = @_;
+    require Number::Format;
+    return Number::Format::unformat_number(
+        Number::Format::format_bytes( $bytes, unit => $unit ) );
+}
+
 my %old_stats = get_interface_stats();
 sleep( $np->opts->sleep );
 my %new_stats = get_interface_stats();
@@ -167,24 +181,35 @@ foreach my $interface (@$check_interfaces) {
       ( $new_stats{$interface}{txerrs} - $old_stats{$interface}{txerrs} ) /
       $np->opts->sleep;
 
+    if ( $np->opts->units ne 'bytes' ) {
+        $rxbytes = convert_units( $rxbytes, $np->opts->units );
+        $txbytes = convert_units( $txbytes, $np->opts->units );
+    }
+
     if ( $np->opts->critrxbytes > 0 && $rxbytes > $np->opts->critrxbytes ) {
-        $np->add_message( CRITICAL, "$interface RX: $rxbytes bytes/s\n" );
+        $np->add_message( CRITICAL,
+            "$interface RX: $rxbytes " . $np->opts->units . "/s\n" );
     }
     elsif ( $np->opts->warnrxbytes > 0 && $rxbytes > $np->opts->warnrxbytes ) {
-        $np->add_message( WARNING, "$interface RX: $rxbytes bytes/s\n" );
+        $np->add_message( WARNING,
+            "$interface RX: $rxbytes " . $np->opts->units . "/s\n" );
     }
     else {
-        $np->add_message( OK, "$interface RX: $rxbytes bytes/s\n" );
+        $np->add_message( OK,
+            "$interface RX: $rxbytes " . $np->opts->units . "/s\n" );
     }
 
     if ( $np->opts->crittxbytes > 0 && $txbytes > $np->opts->crittxbytes ) {
-        $np->add_message( CRITICAL, "$interface TX: $txbytes bytes/s\n" );
+        $np->add_message( CRITICAL,
+            "$interface TX: $txbytes " . $np->opts->units . "/s\n" );
     }
     elsif ( $np->opts->warntxbytes > 0 && $txbytes > $np->opts->warntxbytes ) {
-        $np->add_message( WARNING, "$interface TX: $txbytes bytes/s\n" );
+        $np->add_message( WARNING,
+            "$interface TX: $txbytes " . $np->opts->units . "/s\n" );
     }
     else {
-        $np->add_message( OK, "$interface TX: $txbytes bytes/s\n" );
+        $np->add_message( OK,
+            "$interface TX: $txbytes " . $np->opts->units . "/s\n" );
     }
 
     if ( $np->opts->criterrs > 0 && $rxerrs > $np->opts->criterrs ) {
@@ -210,7 +235,7 @@ foreach my $interface (@$check_interfaces) {
     $np->add_perfdata(
         label    => $interface . '-rx',
         value    => $rxbytes,
-        uom      => "bytes/s",
+        uom      => $np->opts->units . "/s",
         warning  => $np->opts->warnrxbytes,
         critical => $np->opts->critrxbytes,
     );
@@ -218,7 +243,7 @@ foreach my $interface (@$check_interfaces) {
     $np->add_perfdata(
         label    => $interface . '-tx',
         value    => $txbytes,
-        uom      => "bytes/s",
+        uom      => $np->opts->units . "/s",
         warning  => $np->opts->warntxbytes,
         critical => $np->opts->crittxbytes,
     );
