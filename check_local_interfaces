@@ -164,7 +164,7 @@ if ( $np->opts->interface ) {
     $check_interfaces = $np->opts->interface;
 }
 else {
-    $check_interfaces = [ keys %new_stats ];
+    $check_interfaces = [ grep( !/^lo$/, keys %new_stats ) ];
 }
 
 foreach my $interface (@$check_interfaces) {
