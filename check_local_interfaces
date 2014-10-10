@@ -86,6 +86,20 @@ $np->add_arg(
     default => 0,
 );
 
+$np->add_arg(
+    spec => 'warnerrs|e=i',
+    help =>
+'WARNING if more than X errors/s were seen during sample period (default: %s)',
+    default => 0,
+);
+
+$np->add_arg(
+    spec => 'criterrs|E=i',
+    help =>
+'CRITICAL if more than X errors/s were seen during sample period (default: %s)',
+    default => 0,
+);
+
 $np->getopts;
 
 sub get_interface_stats {
@@ -146,6 +160,12 @@ foreach my $interface (@$check_interfaces) {
     my $txbytes =
       ( $new_stats{$interface}{txbytes} - $old_stats{$interface}{txbytes} ) /
       $np->opts->sleep;
+    my $rxerrs =
+      ( $new_stats{$interface}{rxerrs} - $old_stats{$interface}{rxerrs} ) /
+      $np->opts->sleep;
+    my $txerrs =
+      ( $new_stats{$interface}{txerrs} - $old_stats{$interface}{txerrs} ) /
+      $np->opts->sleep;
 
     if ( $np->opts->critrxbytes > 0 && $rxbytes > $np->opts->critrxbytes ) {
         $np->add_message( CRITICAL, "$interface RX: $rxbytes bytes/s\n" );
@@ -167,6 +187,26 @@ foreach my $interface (@$check_interfaces) {
         $np->add_message( OK, "$interface TX: $txbytes bytes/s\n" );
     }
 
+    if ( $np->opts->criterrs > 0 && $rxerrs > $np->opts->criterrs ) {
+        $np->add_message( CRITICAL, "$interface RX-ERRS: $rxerrs errs/s\n" );
+    }
+    elsif ( $np->opts->warnerrs > 0 && $rxerrs > $np->opts->warnerrs ) {
+        $np->add_message( WARNING, "$interface RX-ERRS: $rxerrs errs/s\n" );
+    }
+    else {
+        $np->add_message( OK, "$interface RX-ERRS: $rxerrs errs/s\n" );
+    }
+
+    if ( $np->opts->criterrs > 0 && $txerrs > $np->opts->criterrs ) {
+        $np->add_message( CRITICAL, "$interface TX-ERRS: $txerrs errs/s\n" );
+    }
+    elsif ( $np->opts->warnerrs > 0 && $txerrs > $np->opts->warnerrs ) {
+        $np->add_message( WARNING, "$interface TX-ERRS: $txerrs errs/s\n" );
+    }
+    else {
+        $np->add_message( OK, "$interface TX-ERRS: $txerrs errs/s\n" );
+    }
+
     $np->add_perfdata(
         label    => $interface . '-rx',
         value    => $rxbytes,
@@ -183,6 +223,21 @@ foreach my $interface (@$check_interfaces) {
         critical => $np->opts->crittxbytes,
     );
 
+    $np->add_perfdata(
+        label    => $interface . '-rxerrs',
+        value    => $rxerrs,
+        uom      => "errs/s",
+        warning  => $np->opts->warnerrs,
+        critical => $np->opts->criterrs,
+    );
+
+    $np->add_perfdata(
+        label    => $interface . '-txerrs',
+        value    => $txerrs,
+        uom      => "errs/s",
+        warning  => $np->opts->warnerrs,
+        critical => $np->opts->criterrs,
+    );
 }
 
 my $code;
