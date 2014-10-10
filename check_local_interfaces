@@ -36,8 +36,14 @@ my $proc = '/proc/net/dev';
 
 my $np = Nagios::Plugin->new(
     usage => "Usage: %s [ -i|--interface=<interface>] "
-      . "[ -w|--warning=<port> ] "
-      . "[ -c|--critical=<port> ] ",
+      . "[ -s|--sleep=<seconds> ] "
+      . "[ -w|--warnrxbytes=<bytes> ] "
+      . "[ -c|--critrxbytes=<bytes> ] "
+      . "[ -W|--warntxbytes=<bytes> ] "
+      . "[ -C|--crittxbytes=<bytes> ] "
+      . "[ -e|--warnerrs=<errors> ] "
+      . "[ -E|--criterrs=<errors> ] "
+      . "[ -u|--units=<units> ] ",
     shortname => 'Check local interface stats',
     url       => 'https://github.com/evgeni/check_local_interfaces',
     version   => '0.1',
