@@ -33,7 +33,7 @@ use warnings;
 use Nagios::Plugin;
 
 my $proc    = '/proc/net/dev';
-my $netstat = 'netstat -ibdWn -f link';
+my $netstat = 'netstat -ibdWn';
 
 my $np = Nagios::Plugin->new(
     usage => "Usage: %s [ -i|--interface=<interface>] "
@@ -177,7 +177,7 @@ sub get_interface_stats_bsd {
 
     while (<$stats>) {
         chomp;
-        next if /^Name/;
+        next unless /Link/;
         my (
             $interface, $mtu,     $network, $address,   $rxpackets,
             $rxerrs,    $rxdrop,  $rxbytes, $txpackets, $txerrs,
