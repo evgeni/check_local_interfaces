@@ -32,7 +32,8 @@ use strict;
 use warnings;
 use Nagios::Plugin;
 
-my $proc = '/proc/net/dev';
+my $proc    = '/proc/net/dev';
+my $netstat = 'netstat -ibdWn -f link';
 
 my $np = Nagios::Plugin->new(
     usage => "Usage: %s [ -i|--interface=<interface>] "
@@ -116,6 +117,18 @@ $np->add_arg(
 $np->getopts;
 
 sub get_interface_stats {
+    if ( $^O eq 'linux' ) {
+        return get_interface_stats_linux();
+    }
+    elsif ( $^O =~ /bsd$/ ) {
+        return get_interface_stats_bsd();
+    }
+    else {
+        $np->nagios_exit( 'UNKNOWN', "Unsupported OS: $^O" );
+    }
+}
+
+sub get_interface_stats_linux {
 
     my %interfaces;
 
@@ -134,6 +147,7 @@ sub get_interface_stats {
         ) = split( ' ', $2 );
         $interfaces{$interface} = {
             rxbytes      => $rxbytes,
+            rxpackets    => $rxpackets,
             rxerrs       => $rxerrs,
             rxdrop       => $rxdrop,
             rxfifo       => $rxfifo,
@@ -148,6 +162,51 @@ sub get_interface_stats {
             txcolls      => $txcolls,
             txcarrier    => $txcarrier,
             txcompressed => $txcompressed
+        };
+    }
+
+    return %interfaces;
+}
+
+sub get_interface_stats_bsd {
+
+    my %interfaces;
+
+    open( my $stats, "-|", $netstat )
+      or $np->nagios_exit( 'UNKNOWN', "Could not call $netstat" );
+
+    while (<$stats>) {
+        chomp;
+        next if /^Name/;
+        my (
+            $interface, $mtu,     $network, $address,   $rxpackets,
+            $rxerrs,    $rxdrop,  $rxbytes, $txpackets, $txerrs,
+            $txbytes,   $txcolls, $txdrop
+        ) = split( ' ', $_ );
+        if ( $address eq '0' ) {
+            (
+                $interface, $mtu,     $network, $rxpackets,
+                $rxerrs,    $rxdrop,  $rxbytes, $txpackets,
+                $txerrs,    $txbytes, $txcolls, $txdrop
+            ) = split( ' ', $_ );
+        }
+        $interfaces{$interface} = {
+            rxbytes      => $rxbytes,
+            rxpackets    => $rxpackets,
+            rxerrs       => $rxerrs,
+            rxdrop       => $rxdrop,
+            rxfifo       => '',
+            rxframe      => '',
+            rxcompressed => '',
+            rxmulticast  => '',
+            txbytes      => $txbytes,
+            txpackets    => $txpackets,
+            txerrs       => $txerrs,
+            txdrop       => $txdrop,
+            txfifo       => '',
+            txcolls      => $txcolls,
+            txcarrier    => '',
+            txcompressed => ''
         };
     }
 
@@ -170,7 +229,7 @@ if ( $np->opts->interface ) {
     $check_interfaces = $np->opts->interface;
 }
 else {
-    $check_interfaces = [ grep( !/^lo$/, keys %new_stats ) ];
+    $check_interfaces = [ grep( !/^lo/, keys %new_stats ) ];
 }
 
 foreach my $interface (@$check_interfaces) {
