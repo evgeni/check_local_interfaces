@@ -190,6 +190,7 @@ sub get_interface_stats_bsd {
                 $txerrs,    $txbytes, $txcolls, $txdrop
             ) = split( ' ', $_ );
         }
+        if ( $interface =~ /\*$/ ) { next; }
         $interfaces{$interface} = {
             rxbytes      => $rxbytes,
             rxpackets    => $rxpackets,
