@@ -183,7 +183,7 @@ sub get_interface_stats_bsd {
             $rxerrs,    $rxdrop,  $rxbytes, $txpackets, $txerrs,
             $txbytes,   $txcolls, $txdrop
         ) = split( ' ', $_ );
-        if ( $address eq '0' ) {
+        if ( $address !~ /:/ ) {
             (
                 $interface, $mtu,     $network, $rxpackets,
                 $rxerrs,    $rxdrop,  $rxbytes, $txpackets,
