@@ -120,7 +120,7 @@ sub get_interface_stats {
     if ( $^O eq 'linux' ) {
         return get_interface_stats_linux();
     }
-    elsif ( $^O =~ /bsd$/ ) {
+    elsif ( $^O =~ /bsd$/ || $^O eq 'darwin' ) {
         return get_interface_stats_bsd();
     }
     else {
@@ -182,13 +182,34 @@ sub get_interface_stats_bsd {
             $interface, $mtu,     $network, $address,   $rxpackets,
             $rxerrs,    $rxdrop,  $rxbytes, $txpackets, $txerrs,
             $txbytes,   $txcolls, $txdrop
-        ) = split( ' ', $_ );
-        if ( $address !~ /:/ ) {
+        );
+        if ( $^O =~ /bsd$/ ) {
             (
-                $interface, $mtu,     $network, $rxpackets,
-                $rxerrs,    $rxdrop,  $rxbytes, $txpackets,
+                $interface, $mtu,     $network, $address,   $rxpackets,
+                $rxerrs,    $rxdrop,  $rxbytes, $txpackets, $txerrs,
+                $txbytes,   $txcolls, $txdrop
+            ) = split( ' ', $_ );
+            if ( $address !~ /:/ ) {
+                (
+                    $interface, $mtu,     $network, $rxpackets,
+                    $rxerrs,    $rxdrop,  $rxbytes, $txpackets,
+                    $txerrs,    $txbytes, $txcolls, $txdrop
+                ) = split( ' ', $_ );
+            }
+        }
+        elsif ( $^O = 'darwin' ) {
+            (
+                $interface, $mtu,     $network, $address,
+                $rxpackets, $rxerrs,  $rxbytes, $txpackets,
                 $txerrs,    $txbytes, $txcolls, $txdrop
             ) = split( ' ', $_ );
+            if ( $address !~ /:/ ) {
+                (
+                    $interface, $mtu,     $network,   $rxpackets,
+                    $rxerrs,    $rxbytes, $txpackets, $txerrs,
+                    $txbytes,   $txcolls, $txdrop
+                ) = split( ' ', $_ );
+            }
         }
         if ( $interface =~ /\*$/ ) { next; }
         $interfaces{$interface} = {
