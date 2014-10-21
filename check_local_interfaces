@@ -31,9 +31,14 @@
 use strict;
 use warnings;
 use Nagios::Plugin;
+use Storable;
+use Data::Dumper;
 
 my $proc    = '/proc/net/dev';
 my $netstat = 'netstat -ibdWn';
+my $tmpfile = $ENV{"HOME"} . '/check_local_interfaces.tmp';
+my $now     = time;
+my $sleep   = -1;
 
 my $np = Nagios::Plugin->new(
     usage => "Usage: %s [ -i|--interface=<interface>] "
@@ -44,7 +49,8 @@ my $np = Nagios::Plugin->new(
       . "[ -C|--crittxbytes=<bytes> ] "
       . "[ -e|--warnerrs=<errors> ] "
       . "[ -E|--criterrs=<errors> ] "
-      . "[ -u|--units=<units> ] ",
+      . "[ -u|--units=<units> ] "
+      . "[ -v|--verbose ]",
     shortname => 'Check local interface stats',
     url       => 'https://github.com/evgeni/check_local_interfaces',
     version   => '0.1',
@@ -114,7 +120,72 @@ $np->add_arg(
     default => 'bytes',
 );
 
+$np->add_arg(
+    spec => 'tmpfile|T:s',
+    help =>
+'Read / write temporary data from / to <tmpfile> (default: %s)',
+);
+
 $np->getopts;
+
+if ( defined $np->opts->tmpfile ) {
+    if ( $np->opts->tmpfile ne "" ) {
+        $tmpfile = $np->opts->tmpfile;
+    }
+}
+
+##
+## write_tmpfile(filename, timestamp, stats_hash)
+##
+## Return 1 in case of a successful write. Otherwise
+## the exit the program with UNKNOWN state.
+##
+sub write_tmpfile {
+    my ( $filename, $time, %stats ) = @_;
+
+    local $Data::Dumper::Terse = 1;
+
+    open my $fh, '>', $filename or
+        $np->nagios_exit( 'UNKNOWN', "could not open file: $filename");
+
+    print $fh $time . "\n";
+    print $fh Dumper(\%stats);
+
+    close $fh;
+
+    return 1;
+}
+
+##
+## read_tmpfile(filename)
+##
+## Returns a tuple of 3 values. (return_code, timestamp, stats_hash).
+## return_code contains ether 1 or 0. 1 in case of a successful read,
+## otherwise 0.
+##
+## If the read was successful, timestamp contains the actual time while
+## writing. stats_hash will contain the saved stats.
+##
+sub read_tmpfile {
+    my ( $filename ) = @_;
+    my ( $time, %stats, $dumped );
+    my $fh;
+
+    if ( ! open $fh, '<', $filename ) {
+        return ( 0, -1, %stats );
+    }
+
+    $time = <$fh>; # read the first line of the given file
+
+    local $/ = undef; # read until end of file
+    $dumped = <$fh>;
+
+    %stats = %{ eval $dumped };
+
+    close $fh;
+
+    return ( 1, $time, %stats );
+}
 
 sub get_interface_stats {
     if ( $^O eq 'linux' ) {
@@ -242,9 +313,44 @@ sub convert_units {
         Number::Format::format_bytes( $bytes, unit => $unit ) );
 }
 
-my %old_stats = get_interface_stats();
-sleep( $np->opts->sleep );
+my %old_stats;
+
+# If a tmpfile is defined, we (hopefully) get old_stats
+# from that file. Otherwise we have to take our own
+# stats "old_stats".
+if ( defined $np->opts->tmpfile ) {
+    my $rc;
+
+    ( $rc, $sleep, %old_stats ) = read_tmpfile($tmpfile);
+
+    if ( $rc eq 0 )
+    {
+        # We could not open the old stats file, take a
+        # new one an quit with UNKNOWN State.
+
+        write_tmpfile($tmpfile, time, get_interface_stats());
+        $np->nagios_exit( 'UNKNOWN', "Could not open tmpfile: $tmpfile" );
+    }
+
+    $sleep = time - $sleep;
+
+    # We need to check if $sleep is zero to prevent
+    # "devision by zero" errors.
+    if ( $sleep eq 0 ) {
+        $sleep = 1;
+    }
+} else {
+    %old_stats = get_interface_stats();
+    $sleep = $np->opts->sleep;
+    sleep( $sleep );
+}
+
 my %new_stats = get_interface_stats();
+
+# We need to check, if a tmpfile sould be written to disk.
+if ( defined $np->opts->tmpfile ) {
+    write_tmpfile($tmpfile, time, %new_stats);
+}
 
 my $check_interfaces;
 if ( $np->opts->interface ) {
@@ -257,16 +363,16 @@ else {
 foreach my $interface (@$check_interfaces) {
     my $rxbytes =
       ( $new_stats{$interface}{rxbytes} - $old_stats{$interface}{rxbytes} ) /
-      $np->opts->sleep;
+      $sleep;
     my $txbytes =
       ( $new_stats{$interface}{txbytes} - $old_stats{$interface}{txbytes} ) /
-      $np->opts->sleep;
+      $sleep;
     my $rxerrs =
       ( $new_stats{$interface}{rxerrs} - $old_stats{$interface}{rxerrs} ) /
-      $np->opts->sleep;
+      $sleep;
     my $txerrs =
       ( $new_stats{$interface}{txerrs} - $old_stats{$interface}{txerrs} ) /
-      $np->opts->sleep;
+      $sleep;
 
     if ( $np->opts->units ne 'bytes' ) {
         $rxbytes = convert_units( $rxbytes, $np->opts->units );
@@ -275,48 +381,48 @@ foreach my $interface (@$check_interfaces) {
 
     if ( $np->opts->critrxbytes > 0 && $rxbytes > $np->opts->critrxbytes ) {
         $np->add_message( CRITICAL,
-            "$interface RX: $rxbytes " . $np->opts->units . "/s\n" );
+            "$interface RX: $rxbytes " . $np->opts->units . "/s" );
     }
     elsif ( $np->opts->warnrxbytes > 0 && $rxbytes > $np->opts->warnrxbytes ) {
         $np->add_message( WARNING,
-            "$interface RX: $rxbytes " . $np->opts->units . "/s\n" );
+            "$interface RX: $rxbytes " . $np->opts->units . "/s" );
     }
-    else {
+    elsif ( $np->opts->verbose ) {
         $np->add_message( OK,
-            "$interface RX: $rxbytes " . $np->opts->units . "/s\n" );
+            "$interface RX: $rxbytes " . $np->opts->units . "/s" );
     }
 
     if ( $np->opts->crittxbytes > 0 && $txbytes > $np->opts->crittxbytes ) {
         $np->add_message( CRITICAL,
-            "$interface TX: $txbytes " . $np->opts->units . "/s\n" );
+            "$interface TX: $txbytes " . $np->opts->units . "/s" );
     }
     elsif ( $np->opts->warntxbytes > 0 && $txbytes > $np->opts->warntxbytes ) {
         $np->add_message( WARNING,
-            "$interface TX: $txbytes " . $np->opts->units . "/s\n" );
+            "$interface TX: $txbytes " . $np->opts->units . "/s" );
     }
-    else {
+    elsif ( $np->opts->verbose ) {
         $np->add_message( OK,
-            "$interface TX: $txbytes " . $np->opts->units . "/s\n" );
+            "$interface TX: $txbytes " . $np->opts->units . "/s" );
     }
 
     if ( $np->opts->criterrs > 0 && $rxerrs > $np->opts->criterrs ) {
-        $np->add_message( CRITICAL, "$interface RX-ERRS: $rxerrs errs/s\n" );
+        $np->add_message( CRITICAL, "$interface RX-ERRS: $rxerrs errs/s" );
     }
     elsif ( $np->opts->warnerrs > 0 && $rxerrs > $np->opts->warnerrs ) {
-        $np->add_message( WARNING, "$interface RX-ERRS: $rxerrs errs/s\n" );
+        $np->add_message( WARNING, "$interface RX-ERRS: $rxerrs errs/s" );
     }
-    else {
-        $np->add_message( OK, "$interface RX-ERRS: $rxerrs errs/s\n" );
+    elsif ( $np->opts->verbose ) {
+        $np->add_message( OK, "$interface RX-ERRS: $rxerrs errs/s" );
     }
 
     if ( $np->opts->criterrs > 0 && $txerrs > $np->opts->criterrs ) {
-        $np->add_message( CRITICAL, "$interface TX-ERRS: $txerrs errs/s\n" );
+        $np->add_message( CRITICAL, "$interface TX-ERRS: $txerrs errs/s" );
     }
     elsif ( $np->opts->warnerrs > 0 && $txerrs > $np->opts->warnerrs ) {
-        $np->add_message( WARNING, "$interface TX-ERRS: $txerrs errs/s\n" );
+        $np->add_message( WARNING, "$interface TX-ERRS: $txerrs errs/s" );
     }
-    else {
-        $np->add_message( OK, "$interface TX-ERRS: $txerrs errs/s\n" );
+    elsif ( $np->opts->verbose ) {
+        $np->add_message( OK, "$interface TX-ERRS: $txerrs errs/s" );
     }
 
     $np->add_perfdata(
