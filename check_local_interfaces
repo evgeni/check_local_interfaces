@@ -35,6 +35,8 @@ use Storable;
 use Data::Dumper;
 use Storable qw(store retrieve freeze thaw dclone);
 
+my $has_number_format = eval "use Number::Format; 1" ? 1 : 0;
+
 my $proc    = '/proc/net/dev';
 my $netstat = 'netstat -ibdWn';
 my $tmpfile = $ENV{"HOME"} . '/check_local_interfaces.tmp';
@@ -300,9 +302,16 @@ sub get_interface_stats_bsd {
 
 sub convert_units {
     my ( $bytes, $unit ) = @_;
-    require Number::Format;
-    return Number::Format::unformat_number(
-        Number::Format::format_bytes( $bytes, unit => $unit ) );
+    if ( $unit =~ /^b/ ) {
+        $unit = 'N';
+    }
+    if ($has_number_format) {
+        return Number::Format::unformat_number(
+            Number::Format::format_bytes( $bytes, unit => $unit ) );
+    }
+    else {
+        return $bytes;
+    }
 }
 
 my %old_stats;
@@ -367,10 +376,8 @@ foreach my $interface (@$check_interfaces) {
       ( $new_stats{$interface}{txerrs} - $old_stats{$interface}{txerrs} ) /
       $sleep;
 
-    if ( $np->opts->units ne 'bytes' ) {
-        $rxbytes = convert_units( $rxbytes, $np->opts->units );
-        $txbytes = convert_units( $txbytes, $np->opts->units );
-    }
+    $rxbytes = convert_units( $rxbytes, $np->opts->units );
+    $txbytes = convert_units( $txbytes, $np->opts->units );
 
     if ( $np->opts->critrxbytes > 0 && $rxbytes > $np->opts->critrxbytes ) {
         $np->add_message( CRITICAL,
