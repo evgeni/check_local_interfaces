@@ -123,7 +123,8 @@ $np->add_arg(
 
 $np->add_arg(
     spec => 'tmpfile|T:s',
-    help => 'Read / write temporary data from / to <tmpfile> (default: %s)',
+    help => 'Read / write temporary data from / to <tmpfile> (default: '
+      . $tmpfile . ')',
 );
 
 $np->getopts;
