@@ -123,8 +123,7 @@ $np->add_arg(
 
 $np->add_arg(
     spec => 'tmpfile|T:s',
-    help =>
-'Read / write temporary data from / to <tmpfile> (default: %s)',
+    help => 'Read / write temporary data from / to <tmpfile> (default: %s)',
 );
 
 $np->getopts;
@@ -144,13 +143,13 @@ if ( defined $np->opts->tmpfile ) {
 sub write_tmpfile {
     my ( $filename, $time, %stats ) = @_;
 
-    $stats{ 'time' } = time;
-    store(\%stats, $filename) or
-        $np->nagios_exit( 'UNKNOWN', "could not store stat in file: $filename");
+    $stats{'time'} = time;
+    store( \%stats, $filename )
+      or
+      $np->nagios_exit( 'UNKNOWN', "could not store stat in file: $filename" );
 
     return 1;
 }
-
 
 ##
 ## read_tmpfile(filename)
@@ -163,16 +162,16 @@ sub write_tmpfile {
 ## writing. stats_hash will contain the saved stats.
 ##
 sub read_tmpfile {
-    my ( $filename ) = @_;
+    my ($filename) = @_;
     my ( $time, %stats, $statsref );
 
-    if (! -e $filename ){ 
-	return 0;
+    if ( !-e $filename ) {
+        return 0;
     }
 
     $statsref = retrieve($filename);
-    $np->nagios_exit( 'UNKNOWN'
-	,"Unable to retrieve stats from: $filename\n") unless defined $statsref;
+    $np->nagios_exit( 'UNKNOWN', "Unable to retrieve stats from: $filename\n" )
+      unless defined $statsref;
 
     %stats = %$statsref;
 
@@ -315,12 +314,12 @@ if ( defined $np->opts->tmpfile ) {
 
     ( $rc, %old_stats ) = read_tmpfile($tmpfile);
 
-    if ( $rc eq 0 )
-    {
+    if ( $rc eq 0 ) {
+
         # We could not open the old stats file, take a
         # new one an quit with UNKNOWN State.
 
-        write_tmpfile($tmpfile, time, get_interface_stats());
+        write_tmpfile( $tmpfile, time, get_interface_stats() );
         $np->nagios_exit( 'UNKNOWN', "Could not open tmpfile: $tmpfile" );
     }
 
@@ -331,17 +330,18 @@ if ( defined $np->opts->tmpfile ) {
     if ( $sleep eq 0 ) {
         $sleep = 1;
     }
-} else {
+}
+else {
     %old_stats = get_interface_stats();
-    $sleep = $np->opts->sleep;
-    sleep( $sleep );
+    $sleep     = $np->opts->sleep;
+    sleep($sleep);
 }
 
 my %new_stats = get_interface_stats();
 
 # We need to check, if a tmpfile sould be written to disk.
 if ( defined $np->opts->tmpfile ) {
-    write_tmpfile($tmpfile, time ,%new_stats);
+    write_tmpfile( $tmpfile, time, %new_stats );
 }
 
 my $check_interfaces;
