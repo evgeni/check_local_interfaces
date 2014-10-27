@@ -33,6 +33,7 @@ use warnings;
 use Nagios::Plugin;
 use Storable;
 use Data::Dumper;
+use Storable qw(store retrieve freeze thaw dclone);
 
 my $proc    = '/proc/net/dev';
 my $netstat = 'netstat -ibdWn';
@@ -143,18 +144,13 @@ if ( defined $np->opts->tmpfile ) {
 sub write_tmpfile {
     my ( $filename, $time, %stats ) = @_;
 
-    local $Data::Dumper::Terse = 1;
-
-    open my $fh, '>', $filename or
-        $np->nagios_exit( 'UNKNOWN', "could not open file: $filename");
-
-    print $fh $time . "\n";
-    print $fh Dumper(\%stats);
-
-    close $fh;
+    $stats{ 'time' } = time;
+    store(\%stats, $filename) or
+        $np->nagios_exit( 'UNKNOWN', "could not store stat in file: $filename");
 
     return 1;
 }
+
 
 ##
 ## read_tmpfile(filename)
@@ -168,23 +164,15 @@ sub write_tmpfile {
 ##
 sub read_tmpfile {
     my ( $filename ) = @_;
-    my ( $time, %stats, $dumped );
-    my $fh;
+    my ( $time, %stats, $statsref );
 
-    if ( ! open $fh, '<', $filename ) {
-        return ( 0, -1, %stats );
-    }
+    $statsref = retrieve($filename);
+    $np->nagios_exit( 'UNKNOWN'
+	,"Unable to retrieve stats from: $filename\n") unless defined $statsref;
 
-    $time = <$fh>; # read the first line of the given file
+    %stats = %$statsref;
 
-    local $/ = undef; # read until end of file
-    $dumped = <$fh>;
-
-    %stats = %{ eval $dumped };
-
-    close $fh;
-
-    return ( 1, $time, %stats );
+    return ( 1, %stats );
 }
 
 sub get_interface_stats {
@@ -321,7 +309,7 @@ my %old_stats;
 if ( defined $np->opts->tmpfile ) {
     my $rc;
 
-    ( $rc, $sleep, %old_stats ) = read_tmpfile($tmpfile);
+    ( $rc, %old_stats ) = read_tmpfile($tmpfile);
 
     if ( $rc eq 0 )
     {
@@ -332,7 +320,7 @@ if ( defined $np->opts->tmpfile ) {
         $np->nagios_exit( 'UNKNOWN', "Could not open tmpfile: $tmpfile" );
     }
 
-    $sleep = time - $sleep;
+    $sleep = time - $old_stats{'time'};
 
     # We need to check if $sleep is zero to prevent
     # "devision by zero" errors.
@@ -349,7 +337,7 @@ my %new_stats = get_interface_stats();
 
 # We need to check, if a tmpfile sould be written to disk.
 if ( defined $np->opts->tmpfile ) {
-    write_tmpfile($tmpfile, time, %new_stats);
+    write_tmpfile($tmpfile, time ,%new_stats);
 }
 
 my $check_interfaces;
