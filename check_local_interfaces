@@ -166,6 +166,10 @@ sub read_tmpfile {
     my ( $filename ) = @_;
     my ( $time, %stats, $statsref );
 
+    if (! -e $filename ){ 
+	return 0;
+    }
+
     $statsref = retrieve($filename);
     $np->nagios_exit( 'UNKNOWN'
 	,"Unable to retrieve stats from: $filename\n") unless defined $statsref;
