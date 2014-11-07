@@ -155,6 +155,7 @@ else {
     sub NagiosPluginFake::Getopt::warntxbytes { return 0; }
     sub NagiosPluginFake::Getopt::warnerrs    { return 0; }
     sub NagiosPluginFake::Getopt::verbose     { return 0; }
+    sub NagiosPluginFake::Getopt::sleep       { return 5; }
 }
 
 $np->add_arg(
