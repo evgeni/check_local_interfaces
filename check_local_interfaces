@@ -32,7 +32,6 @@ use strict;
 use warnings;
 use Nagios::Plugin;
 use Storable;
-use Data::Dumper;
 use Storable qw(store retrieve freeze thaw dclone);
 
 my $has_number_format = eval "use Number::Format; 1" ? 1 : 0;
