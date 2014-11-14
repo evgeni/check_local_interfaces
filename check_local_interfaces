@@ -90,9 +90,20 @@ else {
     my $allstatus   = OK;
     my $allmessage  = '';
     my $allperfdata = '';
+    my @opts        = ();
+    my $allargs     = {};
 
-    sub NagiosPluginFake::add_arg { }
-    sub NagiosPluginFake::getopts { }
+    sub NagiosPluginFake::add_arg {
+        my $self = shift;
+        my %args = @_;
+        push @opts, $args{spec};
+    }
+
+    sub NagiosPluginFake::getopts {
+        use Getopt::Long;
+        my $ok = GetOptions( $allargs, @opts );
+        die("getopts failed, I am not sorry") unless $ok;
+    }
 
     sub NagiosPluginFake::nagios_exit {
         my ( $self, $code, $message ) = @_;
@@ -144,18 +155,51 @@ else {
         $message .= $allperfdata if $allperfdata;
         return ( $allstatus, $message );
     }
-    sub NagiosPluginFake::opts                { return $npopts }
-    sub NagiosPluginFake::Getopt::tmpfile     { return ""; }
-    sub NagiosPluginFake::Getopt::interface   { return ""; }
-    sub NagiosPluginFake::Getopt::units       { return ""; }
-    sub NagiosPluginFake::Getopt::critrxbytes { return 0; }
-    sub NagiosPluginFake::Getopt::crittxbytes { return 0; }
-    sub NagiosPluginFake::Getopt::criterrs    { return 0; }
-    sub NagiosPluginFake::Getopt::warnrxbytes { return 0; }
-    sub NagiosPluginFake::Getopt::warntxbytes { return 0; }
-    sub NagiosPluginFake::Getopt::warnerrs    { return 0; }
-    sub NagiosPluginFake::Getopt::verbose     { return 0; }
-    sub NagiosPluginFake::Getopt::sleep       { return 5; }
+    sub NagiosPluginFake::opts { return $npopts }
+
+    sub NagiosPluginFake::Getopt::tmpfile {
+        return defined( $allargs->{tmpfile} ) ? $allargs->{tmpfile} : undef;
+    }
+
+    sub NagiosPluginFake::Getopt::interface {
+        return defined( $allargs->{interface} ) ? $allargs->{interface} : "";
+    }
+
+    sub NagiosPluginFake::Getopt::units {
+        return defined( $allargs->{units} ) ? $allargs->{units} : "";
+    }
+
+    sub NagiosPluginFake::Getopt::critrxbytes {
+        return defined( $allargs->{critrxbytes} ) ? $allargs->{critrxbytes} : 0;
+    }
+
+    sub NagiosPluginFake::Getopt::crittxbytes {
+        return defined( $allargs->{crittxbytes} ) ? $allargs->{crittxbytes} : 0;
+    }
+
+    sub NagiosPluginFake::Getopt::criterrs {
+        return defined( $allargs->{criterrs} ) ? $allargs->{criterrs} : 0;
+    }
+
+    sub NagiosPluginFake::Getopt::warnrxbytes {
+        return defined( $allargs->{warnrxbytes} ) ? $allargs->{warnrxbytes} : 0;
+    }
+
+    sub NagiosPluginFake::Getopt::warntxbytes {
+        return defined( $allargs->{warntxbytes} ) ? $allargs->{warntxbytes} : 0;
+    }
+
+    sub NagiosPluginFake::Getopt::warnerrs {
+        return defined( $allargs->{warnerrs} ) ? $allargs->{warnerrs} : 0;
+    }
+
+    sub NagiosPluginFake::Getopt::verbose {
+        return defined( $allargs->{verbose} ) ? $allargs->{verbose} : undef;
+    }
+
+    sub NagiosPluginFake::Getopt::sleep {
+        return defined( $allargs->{sleep} ) ? $allargs->{sleep} : 5;
+    }
 }
 
 $np->add_arg(
