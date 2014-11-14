@@ -152,7 +152,7 @@ else {
         my $message = '';
         $message .= $allmessage if $allmessage;
         $message .= ' ' if ( $allmessage && $allperfdata );
-        $message .= $allperfdata if $allperfdata;
+        $message .= "| " . $allperfdata if $allperfdata;
         return ( $allstatus, $message );
     }
     sub NagiosPluginFake::opts { return $npopts }
@@ -166,7 +166,7 @@ else {
     }
 
     sub NagiosPluginFake::Getopt::units {
-        return defined( $allargs->{units} ) ? $allargs->{units} : "";
+        return defined( $allargs->{units} ) ? $allargs->{units} : "bytes";
     }
 
     sub NagiosPluginFake::Getopt::critrxbytes {
@@ -402,7 +402,7 @@ sub get_interface_stats_bsd {
                 ) = split( ' ', $_ );
             }
         }
-        elsif ( $^O = 'darwin' ) {
+        elsif ( $^O == 'darwin' ) {
             (
                 $interface, $mtu,     $network, $address,
                 $rxpackets, $rxerrs,  $rxbytes, $txpackets,
